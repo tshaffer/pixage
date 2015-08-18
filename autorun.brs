@@ -147,7 +147,7 @@ Function ParsePlaylistFile(playlistFileXML As Object)
 
 	playlistFile.name = playlistFileXML.Content.Cname.getText()
 	playlistFile.fileName = playlistFileXML.Content.FileName.getText()
-	playlistFile.duration = playlistFileXML.Content.Duration.getText()
+	playlistFile.duration = playlistFileXML.Duration.getText()
 	playlistFile.contentId = playlistFileXML.Content.ContentID.getText()
 	playlistFile.fileSize = playlistFileXML.Content.FileSize.getText()
 	playlistFile.CRC = playlistFileXML.Content.CRC.getText()

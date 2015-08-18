@@ -428,6 +428,14 @@ Function STGettingPublishmentVersionForClientEventHandler(event As Object, state
 						if m.stateMachine.filesToDownload.Count() > 0 then
 							stateData.nextState = m.stateMachine.stDownloadingContent
 						else
+
+							print "No new assets to download - post message"
+
+							' publishment file changed - no new assets to download
+							contentUpdatedEvent = CreateObject("roAssociativeArray")
+							contentUpdatedEvent["EventType"] = "CONTENT_UPDATED"
+							m.stateMachine.msgPort.PostMessage(contentUpdatedEvent)
+
 							stateData.nextState = m.stateMachine.stWaitForTimeout
 							m.stateMachine.channel.version = xmlVersion$
 						endif
@@ -505,7 +513,13 @@ Function STDownloadingContentEventHandler(event As Object, stateData As Object) 
 				if event.GetResponseCode() = 200 or event.GetResponseCode() = 0 then
 					print "url xfer complete - responseCode = " + stri(event.GetResponseCode())
 					if m.stateMachine.filesToDownload.Count() = 0 then
+
 						print "all files successfully downloaded"
+
+						contentUpdatedEvent = CreateObject("roAssociativeArray")
+						contentUpdatedEvent["EventType"] = "CONTENT_UPDATED"
+						m.stateMachine.msgPort.PostMessage(contentUpdatedEvent)
+
 						stateData.nextState = m.stateMachine.stWaitForTimeout
 						return "TRANSITION"
 					else

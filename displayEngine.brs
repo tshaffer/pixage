@@ -136,20 +136,19 @@ Function STWaitingForUpdatedContentEventHandler(event As Object, stateData As Ob
 
                 ' m.obj.diagnostics.PrintDebug(m.id$ + ": exit signal")
 				print m.id$ + ": exit signal"
-            
-            else if event["EventType"] = "CONTENT_UPDATED" then
 
+            else if event["EventType"] = "CONTENT_UPDATED" then
                 ' new content was downloaded from the network
-'                m.obj.diagnostics.PrintDebug("STWaitingForInitialContentEventHandler - CONTENT_UPDATED")
+'               m.obj.diagnostics.PrintDebug("STWaitingForInitialContentEventHandler - CONTENT_UPDATED")
 '				m.obj.logging.WriteDiagnosticLogEntry( m.obj.diagnosticCodes.SWITCHING_TO_NEW_CONTENT, "" )
 
-'				channelSpecification = event["ChannelSpecification"]
-'				assetPoolFiles = event["AssetPoolFiles"]
+				m.stateMachine.channel = ParseXml()
+				m.BuildContentList()
 
-'				m.stateMachine.SetupDisplay(channelSpecification, assetPoolFiles)
+				m.displayIndex = 0
+				m.DisplayItem()
 
-'      			stateData.nextState = m.stateMachine.stWaitingForUpdatedContent
-'				return "TRANSITION"
+                return "HANDLED"
 
 			endif
             
