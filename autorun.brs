@@ -29,6 +29,7 @@ Sub RunPlayer()
 	Player.displayEngine.Initialize()
 
 	Player.eventHandler.AddHSM(Player.networking)
+	Player.eventHandler.AddHSM(Player.displayEngine)
 
 	Player.eventHandler.EventLoop()
 
@@ -41,7 +42,6 @@ Function newPlayer(msgPort As Object) As Object
 
     Player.msgPort = msgPort
 	EnableZoneSupport(true)
-
 
 	return Player
 
