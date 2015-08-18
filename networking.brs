@@ -22,12 +22,6 @@ Function newNetworking( player As Object, diagnostics As Object, logging As Obje
 
 '	NetworkingStateMachine.LaunchRetryTimer	= LaunchRetryTimer
 
-	NetworkingStateMachine.ParseXml = ParseXml
-	NetworkingStateMachine.ParseTemplate = ParseTemplate
-	NetworkingStateMachine.ParseFrame = ParseFrame
-	NetworkingStateMachine.ParsePlaylist = ParsePlaylist
-	NetworkingStateMachine.ParsePlaylistFile = ParsePlaylistFile
-
     NetworkingStateMachine.stTop = NetworkingStateMachine.newHState(NetworkingStateMachine, "Top")
     NetworkingStateMachine.stTop.HStateEventHandler = STTopEventHandler
     
@@ -67,7 +61,7 @@ End Function
 
 Function InitializeNetworkingStateMachine() As Object
 
-	m.channel = m.ParseXml()
+	m.channel = ParseXml()
 
     m.timeBetweenNetConnects% = 30
 
@@ -344,107 +338,6 @@ Sub UnpackPublishFile()
 End Sub
 
 
-Function ParseXml()
-
-	channel = {}
-	channel.version = ""
-	channel.templates = []
-
-	xml$ = ReadAsciiFile("xml/publishnew.xml")
-    if len(xml$) > 0 then
-
-		publishmentXml = CreateObject("roXMLElement")
-		publishmentXml.Parse(xml$)
-
-		if publishmentXml.getName() = "Publishment" then
-			
-			channel.version = publishmentXml.Version.GetText()
-
-			templatesXML = publishmentXml.Timeline.Templates.Template
-			for each templateXml in templatesXML
-				template = m.ParseTemplate(templateXML)
-				channel.templates.push(template)
-			next
-
-		endif
-	endif
-
-	return channel
-
-End Function
-
-
-Function ParseTemplate(templateXML As Object)
-
-	template = {}
-
-	template.name = templateXML.CamSetName.GetText()
-	template.duration = templateXML.Duration.GetText()
-	template.frames = []
-
-	framesXML = templateXML.Frames.Frame
-	for each frameXml in framesXml
-		frame = m.ParseFrame(frameXML)
-		template.frames.push(frame)
-	next
-
-	return template
-
-End Function
-
-
-Function ParseFrame(frameXML As Object)
-
-	frame = {}
-
-	frame.name = frameXML.CamName.GetText()
-	frame.playlists = []
-
-	playlistsXML = frameXML.PlayLists.Playlist
-	for each playlistXML in playlistsXML
-		playlist = m.ParsePlaylist(playlistXML)
-		frame.playlists.push(playlist)
-	next
-
-	return frame
-
-End Function
-
-
-Function ParsePlaylist(playlistXML As Object)
-
-	playlist = {}
-
-	playlist.name = playlistXML.ListFileID.GetText()
-	playlist.files = []
-
-	playlistFilesXML = playlistXML.PlayListFiles.PlaylistFile
-	for each playlistFileXML in playlistFilesXML
-		playlistFile = m.ParsePlaylistFile(playlistFileXML)
-		playlist.files.push(playlistFile)
-	next
-
-	return playlist
-
-End Function
-
-
-Function ParsePlaylistFile(playlistFileXML As Object)
-
-	playlistFile = {}
-
-	playlistFile.name = playlistFileXML.Content.Cname.getText()
-	playlistFile.fileName = playlistFileXML.Content.FileName.getText()
-	playlistFile.duration = playlistFileXML.Content.Duration.getText()
-	playlistFile.contentId = playlistFileXML.Content.ContentID.getText()
-	playlistFile.fileSize = playlistFileXML.Content.FileSize.getText()
-	playlistFile.CRC = playlistFileXML.Content.CRC.getText()
-
-	return playlistFile
-
-End Function
-
-
 Function GetFilesToDownload(channel As Object)
 
 	playlistFiles = []
@@ -530,7 +423,7 @@ Function STGettingPublishmentVersionForClientEventHandler(event As Object, state
 
 						m.RetrievePublishFile(xmlVersion$)
 						m.UnpackPublishFile()
-						m.stateMachine.channel = m.stateMachine.ParseXml()
+						m.stateMachine.channel = ParseXml()
 						m.stateMachine.filesToDownload = m.GetFilesToDownload(m.stateMachine.channel)
 						if m.stateMachine.filesToDownload.Count() > 0 then
 							stateData.nextState = m.stateMachine.stDownloadingContent
