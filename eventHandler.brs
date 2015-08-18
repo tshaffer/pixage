@@ -30,6 +30,7 @@ Sub eventHandler_EventLoop()
 
 '		m.diagnostics.PrintTimestamp()
 '		m.diagnostics.PrintDebug("msg received - type=" + type(msg))
+		print "msg received - type=" + type(msg)
 
 		numHSMs% = m.hsms.Count()
 		for i% = 0 to numHSMs% - 1

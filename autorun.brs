@@ -13,6 +13,7 @@ Sub RunPlayer()
 
 	CreateDirectory("brightsign-dumps")
 	CreateDirectory("pool")
+	CreateDirectory("assets")
 	
 	msgPort = CreateObject("roMessagePort")
 

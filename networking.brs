@@ -12,7 +12,6 @@ Function newNetworking( player As Object, diagnostics As Object, logging As Obje
 	NetworkingStateMachine.msgPort = msgPort
 	NetworkingStateMachine.assetPool = assetPool
 	NetworkingStateMachine.systemTime = systemTime
-
 	
     NetworkingStateMachine.POOL_EVENT_FILE_DOWNLOADED = 1
     NetworkingStateMachine.POOL_EVENT_FILE_FAILED = -1
@@ -22,6 +21,12 @@ Function newNetworking( player As Object, diagnostics As Object, logging As Obje
     NetworkingStateMachine.EVENT_REALIZE_SUCCESS = 101
 
 '	NetworkingStateMachine.LaunchRetryTimer	= LaunchRetryTimer
+
+	NetworkingStateMachine.ParseXml = ParseXml
+	NetworkingStateMachine.ParseTemplate = ParseTemplate
+	NetworkingStateMachine.ParseFrame = ParseFrame
+	NetworkingStateMachine.ParsePlaylist = ParsePlaylist
+	NetworkingStateMachine.ParsePlaylistFile = ParsePlaylistFile
 
     NetworkingStateMachine.stTop = NetworkingStateMachine.newHState(NetworkingStateMachine, "Top")
     NetworkingStateMachine.stTop.HStateEventHandler = STTopEventHandler
@@ -42,11 +47,12 @@ Function newNetworking( player As Object, diagnostics As Object, logging As Obje
 	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParseGetPublishmentVersionForClientXml = ParseGetPublishmentVersionForClientXml
 	NetworkingStateMachine.stGettingPublishmentVersionForClient.RetrievePublishFile = RetrievePublishFile
 	NetworkingStateMachine.stGettingPublishmentVersionForClient.UnpackPublishFile = UnpackPublishFile
-	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParseXml = ParseXml
-	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParseTemplate = ParseTemplate
-	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParseFrame = ParseFrame
-	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParsePlaylist = ParsePlaylist
-	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParsePlaylistFile = ParsePlaylistFile
+	NetworkingStateMachine.stGettingPublishmentVersionForClient.GetFilesToDownload = GetFilesToDownload
+	
+    NetworkingStateMachine.stDownloadingContent = NetworkingStateMachine.newHState(NetworkingStateMachine, "DownloadingContent")
+    NetworkingStateMachine.stDownloadingContent.HStateEventHandler = STDownloadingContentEventHandler
+	NetworkingStateMachine.stDownloadingContent.superState = NetworkingStateMachine.stNetworkScheduler
+	NetworkingStateMachine.stDownloadingContent.DownloadFile = DownloadFile
 
     NetworkingStateMachine.stWaitForTimeout = NetworkingStateMachine.newHState(NetworkingStateMachine, "WaitForTimeout")
     NetworkingStateMachine.stWaitForTimeout.HStateEventHandler = STWaitForTimeoutEventHandler
@@ -61,7 +67,7 @@ End Function
 
 Function InitializeNetworkingStateMachine() As Object
 
-	m.lastXmlVersion$ = ""
+	m.channel = m.ParseXml()
 
     m.timeBetweenNetConnects% = 30
 
@@ -341,6 +347,7 @@ End Sub
 Function ParseXml()
 
 	channel = {}
+	channel.version = ""
 	channel.templates = []
 
 	xml$ = ReadAsciiFile("xml/publishnew.xml")
@@ -350,6 +357,8 @@ Function ParseXml()
 		publishmentXml.Parse(xml$)
 
 		if publishmentXml.getName() = "Publishment" then
+			
+			channel.version = publishmentXml.Version.GetText()
 
 			templatesXML = publishmentXml.Timeline.Templates.Template
 			for each templateXml in templatesXML
@@ -357,10 +366,10 @@ Function ParseXml()
 				channel.templates.push(template)
 			next
 
-			return channel
 		endif
-
 	endif
+
+	return channel
 
 End Function
 
@@ -427,11 +436,48 @@ Function ParsePlaylistFile(playlistFileXML As Object)
 	playlistFile.name = playlistFileXML.Content.Cname.getText()
 	playlistFile.fileName = playlistFileXML.Content.FileName.getText()
 	playlistFile.duration = playlistFileXML.Content.Duration.getText()
+	playlistFile.contentId = playlistFileXML.Content.ContentID.getText()
+	playlistFile.fileSize = playlistFileXML.Content.FileSize.getText()
+	playlistFile.CRC = playlistFileXML.Content.CRC.getText()
 
 	return playlistFile
 
 End Function
 
+
+Function GetFilesToDownload(channel As Object)
+
+	playlistFiles = []
+	filesToDownload = []
+
+	for each template in channel.templates
+		for each frame in template.frames
+			for each playlist in frame.playlists
+				for each playlistFile in playlist.files
+					playlistFiles.push(playlistFile)
+				next
+			next
+		next
+	next
+
+	for each playlistFile in playlistFiles
+		fileName = playlistFile.contentId + "#" + playlistFile.fileName
+		filePath = "assets/" + fileName
+		file = CreateObject("roReadFile", filePath)
+		if type(file) = "roReadFile" then
+			file.SeekToEnd()
+			fileLength = file.CurrentPosition()
+			if fileLength <> int(val(playlistFile.fileSize)) then
+				filesToDownload.push(playlistFile)
+			endif
+		else
+			filesToDownload.push(playlistFile)
+		endif
+	next
+
+	return filesToDownload
+
+End Function
 
 
 Function STGettingPublishmentVersionForClientEventHandler(event As Object, stateData As Object) As Object
@@ -476,13 +522,27 @@ Function STGettingPublishmentVersionForClientEventHandler(event As Object, state
 
 					getPublishmentVersionForClient$ = event.GetString()
 					xmlVersion$ = m.ParseGetPublishmentVersionForClientXml( event )
-					if xmlVersion$ <> m.stateMachine.lastXmlVersion$ then
+					if xmlVersion$ <> m.stateMachine.channel.version then
+
+						print "Versions are different - retrieve publish file"
+
+						m.stateMachine.downloadXMLVersion = xmlVersion$
+
 						m.RetrievePublishFile(xmlVersion$)
 						m.UnpackPublishFile()
-						channel = m.ParseXml()
-stop
-						m.stateMachine.lastXmlVersion$ = xmlVersion$
+						m.stateMachine.channel = m.stateMachine.ParseXml()
+						m.stateMachine.filesToDownload = m.GetFilesToDownload(m.stateMachine.channel)
+						if m.stateMachine.filesToDownload.Count() > 0 then
+							stateData.nextState = m.stateMachine.stDownloadingContent
+						else
+							stateData.nextState = m.stateMachine.stWaitForTimeout
+							m.stateMachine.channel.version = xmlVersion$
+						endif
+
+						return "TRANSITION"					
 					endif
+
+					print "Versions are the same - wait for next timeout"
 
 					stateData.nextState = m.stateMachine.stWaitForTimeout
 					return "TRANSITION"
@@ -491,6 +551,88 @@ stop
 				endif
 			endif
 		endif
+    endif
+            
+    stateData.nextState = m.superState
+    return "SUPER"
+    
+End Function
+
+
+Sub DownloadFile(playlistFile)
+
+	url$ = "http://pixage.kocsistem.com.tr/dev30/uploaderws/files/" + playlistFile.contentId + ".pxc"
+
+	m.downloadFileXfer = CreateObject( "roUrlTransfer" )
+	m.downloadFileXfer.SetTimeout( 300000 )
+	m.downloadFileXfer.SetPort( m.stateMachine.msgPort )
+	m.downloadFileXfer.SetUrl( url$ )
+
+	targetFile = "assets/" + playlistFile.contentId + "#" + playlistFile.fileName
+
+	print "download from " + url$ + " to " + targetFile
+
+	rc = m.downloadFileXfer.AsyncGetToFile(targetFile)
+	if rc <> 200 then stop
+
+End Sub
+
+
+Function STDownloadingContentEventHandler(event As Object, stateData As Object) As Object
+
+    stateData.nextState = invalid
+    
+    if type(event) = "roAssociativeArray" then      ' internal message event
+
+        if IsString(event["EventType"]) then
+        
+            if event["EventType"] = "ENTRY_SIGNAL" then
+            
+                ' m.obj.diagnostics.PrintDebug(m.id$ + ": entry signal")
+				print m.id$ + ": entry signal"
+
+				playlistFile = m.stateMachine.filesToDownload.Shift()
+				m.DownloadFile(playlistFile)
+
+                return "HANDLED"
+
+            else if event["EventType"] = "EXIT_SIGNAL" then
+
+                ' m.obj.diagnostics.PrintDebug(m.id$ + ": exit signal")
+				print m.id$ + ": exit signal"
+            
+			endif
+            
+        endif
+        
+    else if type(event) = "roUrlEvent" then
+
+		if type (m.downloadFileXfer) = "roUrlTransfer" then
+	        if event.GetSourceIdentity() = m.downloadFileXfer.GetIdentity() then
+				if event.GetResponseCode() = 200 or event.GetResponseCode() = 0 then
+					print "url xfer complete - responseCode = " + stri(event.GetResponseCode())
+					if m.stateMachine.filesToDownload.Count() = 0 then
+						print "all files successfully downloaded"
+						stateData.nextState = m.stateMachine.stWaitForTimeout
+						return "TRANSITION"
+					else
+						playlistFile = m.stateMachine.filesToDownload.Shift()
+						m.DownloadFile(playlistFile)
+					endif
+				else
+					print "file download error"
+stop
+					' try next file
+					if m.stateMachine.filesToDownload.Count() = 0 then
+						stop
+					else
+						playlistFile = m.stateMachine.filesToDownload.Shift()
+						m.DownloadFile(playlistFile)
+					endif
+				endif
+			endif
+		endif
+
     endif
             
     stateData.nextState = m.superState
@@ -545,7 +687,6 @@ Function STWaitForTimeoutEventHandler(event As Object, stateData As Object) As O
 End Function
 
 
-
 Sub AddFileToDownload( assetsToDownload As Object, fileName$ As String, hash$ As String )
 
 '	m.obj.diagnostics.PrintDebug( "Updated script file: " + fileName$)
@@ -558,5 +699,4 @@ Sub AddFileToDownload( assetsToDownload As Object, fileName$ As String, hash$ As
 	assetsToDownload.push( asset )
 
 End Sub
-
 
