@@ -4,16 +4,15 @@ Function newNetworking( player As Object, diagnostics As Object, logging As Obje
     NetworkingStateMachine.InitialPseudostateHandler = InitializeNetworkingStateMachine
 
 	NetworkingStateMachine.player = player
-'	NetworkingStateMachine.diagnostics = diagnostics
-'	NetworkingStateMachine.logging = logging
-'	NetworkingStateMachine.diagnosticCodes = diagnosticCodes
+	NetworkingStateMachine.diagnostics = diagnostics
+	NetworkingStateMachine.logging = logging
+	NetworkingStateMachine.diagnosticCodes = diagnosticCodes
 	
-'	NetworkingStateMachine.sysInfo = sysInfo
+	NetworkingStateMachine.sysInfo = sysInfo
 	NetworkingStateMachine.msgPort = msgPort
 	NetworkingStateMachine.assetPool = assetPool
 	NetworkingStateMachine.systemTime = systemTime
 
-'	NetworkingStateMachine.checkForSWUpdates = true		' set to false for development
 	
     NetworkingStateMachine.POOL_EVENT_FILE_DOWNLOADED = 1
     NetworkingStateMachine.POOL_EVENT_FILE_FAILED = -1
@@ -30,7 +29,6 @@ Function newNetworking( player As Object, diagnostics As Object, logging As Obje
     NetworkingStateMachine.stNetworkScheduler = NetworkingStateMachine.newHState(NetworkingStateMachine, "NetworkScheduler")
     NetworkingStateMachine.stNetworkScheduler.HStateEventHandler = STNetworkSchedulerEventHandler
 	NetworkingStateMachine.stNetworkScheduler.superState = NetworkingStateMachine.stTop
-'	NetworkingStateMachine.stNetworkScheduler.PerformCheckin = networking_PerformCheckin
 
     NetworkingStateMachine.stCheckingMacAddr = NetworkingStateMachine.newHState(NetworkingStateMachine, "CheckingMacAddr")
     NetworkingStateMachine.stCheckingMacAddr.HStateEventHandler = STCheckingMacAddrEventHandler
@@ -44,10 +42,15 @@ Function newNetworking( player As Object, diagnostics As Object, logging As Obje
 	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParseGetPublishmentVersionForClientXml = ParseGetPublishmentVersionForClientXml
 	NetworkingStateMachine.stGettingPublishmentVersionForClient.RetrievePublishFile = RetrievePublishFile
 	NetworkingStateMachine.stGettingPublishmentVersionForClient.UnpackPublishFile = UnpackPublishFile
+	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParseXml = ParseXml
+	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParseTemplate = ParseTemplate
+	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParseFrame = ParseFrame
+	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParsePlaylist = ParsePlaylist
+	NetworkingStateMachine.stGettingPublishmentVersionForClient.ParsePlaylistFile = ParsePlaylistFile
 
-'    NetworkingStateMachine.stWaitForTimeout = NetworkingStateMachine.newHState(NetworkingStateMachine, "WaitForTimeout")
-'    NetworkingStateMachine.stWaitForTimeout.HStateEventHandler = STWaitForTimeoutEventHandler
-'	NetworkingStateMachine.stWaitForTimeout.superState = NetworkingStateMachine.stNetworkScheduler
+    NetworkingStateMachine.stWaitForTimeout = NetworkingStateMachine.newHState(NetworkingStateMachine, "WaitForTimeout")
+    NetworkingStateMachine.stWaitForTimeout.HStateEventHandler = STWaitForTimeoutEventHandler
+	NetworkingStateMachine.stWaitForTimeout.superState = NetworkingStateMachine.stNetworkScheduler
 
 	NetworkingStateMachine.topState = NetworkingStateMachine.stTop
 	
@@ -57,6 +60,13 @@ End Function
 
 
 Function InitializeNetworkingStateMachine() As Object
+
+	m.lastXmlVersion$ = ""
+
+    m.timeBetweenNetConnects% = 30
+
+    m.networkDownloadTimer = CreateObject("roTimer")
+    m.networkDownloadTimer.SetPort(m.msgPort)
 
 	return m.stCheckingMacAddr
 	
@@ -328,6 +338,102 @@ Sub UnpackPublishFile()
 End Sub
 
 
+Function ParseXml()
+
+	channel = {}
+	channel.templates = []
+
+	xml$ = ReadAsciiFile("xml/publishnew.xml")
+    if len(xml$) > 0 then
+
+		publishmentXml = CreateObject("roXMLElement")
+		publishmentXml.Parse(xml$)
+
+		if publishmentXml.getName() = "Publishment" then
+
+			templatesXML = publishmentXml.Timeline.Templates.Template
+			for each templateXml in templatesXML
+				template = m.ParseTemplate(templateXML)
+				channel.templates.push(template)
+			next
+
+			return channel
+		endif
+
+	endif
+
+End Function
+
+
+Function ParseTemplate(templateXML As Object)
+
+	template = {}
+
+	template.name = templateXML.CamSetName.GetText()
+	template.duration = templateXML.Duration.GetText()
+	template.frames = []
+
+	framesXML = templateXML.Frames.Frame
+	for each frameXml in framesXml
+		frame = m.ParseFrame(frameXML)
+		template.frames.push(frame)
+	next
+
+	return template
+
+End Function
+
+
+Function ParseFrame(frameXML As Object)
+
+	frame = {}
+
+	frame.name = frameXML.CamName.GetText()
+	frame.playlists = []
+
+	playlistsXML = frameXML.PlayLists.Playlist
+	for each playlistXML in playlistsXML
+		playlist = m.ParsePlaylist(playlistXML)
+		frame.playlists.push(playlist)
+	next
+
+	return frame
+
+End Function
+
+
+Function ParsePlaylist(playlistXML As Object)
+
+	playlist = {}
+
+	playlist.name = playlistXML.ListFileID.GetText()
+	playlist.files = []
+
+	playlistFilesXML = playlistXML.PlayListFiles.PlaylistFile
+	for each playlistFileXML in playlistFilesXML
+		playlistFile = m.ParsePlaylistFile(playlistFileXML)
+		playlist.files.push(playlistFile)
+	next
+
+	return playlist
+
+End Function
+
+
+Function ParsePlaylistFile(playlistFileXML As Object)
+
+	playlistFile = {}
+
+	playlistFile.name = playlistFileXML.Content.Cname.getText()
+	playlistFile.fileName = playlistFileXML.Content.FileName.getText()
+	playlistFile.duration = playlistFileXML.Content.Duration.getText()
+
+	return playlistFile
+
+End Function
+
+
+
 Function STGettingPublishmentVersionForClientEventHandler(event As Object, stateData As Object) As Object
 
     stateData.nextState = invalid
@@ -370,13 +476,15 @@ Function STGettingPublishmentVersionForClientEventHandler(event As Object, state
 
 					getPublishmentVersionForClient$ = event.GetString()
 					xmlVersion$ = m.ParseGetPublishmentVersionForClientXml( event )
-
-					' longer term, check to see if xml has changed
-					m.RetrievePublishFile(xmlVersion$)
-					m.UnpackPublishFile()
+					if xmlVersion$ <> m.stateMachine.lastXmlVersion$ then
+						m.RetrievePublishFile(xmlVersion$)
+						m.UnpackPublishFile()
+						channel = m.ParseXml()
 stop
-					m.ParseXml()
-					stateData.nextState = m.stateMachine.stGettingPublishmentVersionForClient
+						m.stateMachine.lastXmlVersion$ = xmlVersion$
+					endif
+
+					stateData.nextState = m.stateMachine.stWaitForTimeout
 					return "TRANSITION"
 				else
 					stop
@@ -389,6 +497,53 @@ stop
     return "SUPER"
     
 End Function
+
+
+Function STWaitForTimeoutEventHandler(event As Object, stateData As Object) As Object
+
+    stateData.nextState = invalid
+    
+    if type(event) = "roAssociativeArray" then      ' internal message event
+
+        if IsString(event["EventType"]) then
+        
+            if event["EventType"] = "ENTRY_SIGNAL" then
+            
+                ' m.obj.diagnostics.PrintDebug(m.id$ + ": entry signal")
+				print m.id$ + ": entry signal"
+
+				m.stateMachine.networkDownloadTimer.SetElapsed(m.stateMachine.timeBetweenNetConnects%, 0)
+				m.stateMachine.networkDownloadTimer.Start()
+
+                return "HANDLED"
+
+            else if event["EventType"] = "EXIT_SIGNAL" then
+
+                ' m.obj.diagnostics.PrintDebug(m.id$ + ": exit signal")
+				print m.id$ + ": exit signal"
+            
+			endif
+            
+        endif
+        
+    else if type(event) = "roTimerEvent" then
+    
+        if type(m.stateMachine.networkDownloadTimer) = "roTimer" then
+        
+            if stri(event.GetSourceIdentity()) = stri(m.stateMachine.networkDownloadTimer.GetIdentity()) then			
+				stateData.nextState = m.stateMachine.stGettingPublishmentVersionForClient
+		        return "TRANSITION"
+			endif
+		    
+		endif
+
+    endif
+            
+    stateData.nextState = m.superState
+    return "SUPER"
+    
+End Function
+
 
 
 Sub AddFileToDownload( assetsToDownload As Object, fileName$ As String, hash$ As String )
