@@ -120,17 +120,15 @@ Function STWaitingForInitialContentEventHandler(event As Object, stateData As Ob
             
             else if event["EventType"] = "CONTENT_UPDATED" then
 
-                ' new content was downloaded from the network
-'                m.obj.diagnostics.PrintDebug("STWaitingForInitialContentEventHandler - CONTENT_UPDATED")
-'				m.obj.logging.WriteDiagnosticLogEntry( m.obj.diagnosticCodes.SWITCHING_TO_NEW_CONTENT, "" )
+				m.stateMachine.channel = ParseXml()
 
-'				channelSpecification = event["ChannelSpecification"]
-'				assetPoolFiles = event["AssetPoolFiles"]
-
-'				m.stateMachine.SetupDisplay(channelSpecification, assetPoolFiles)
-
-'      			stateData.nextState = m.stateMachine.stWaitingForUpdatedContent
-'				return "TRANSITION"
+				if type(m.stateMachine.channel) = "roAssociativeArray" and m.stateMachine.channel.version <> "" and m.stateMachine.channel.templates.Count() > 0 then
+					' need to guarantee that all objects exist
+					playlistFiles = m.stateMachine.channel.templates[0].frames[0].playlists[0].files
+					BubbleSortPlaylistFiles(playlistFiles)
+					stateData.nextState = m.stateMachine.stWaitingForUpdatedContent
+					return "TRANSITION"
+				endif
 
 			endif
             
