@@ -41,13 +41,44 @@ Function InitializeDisplayEngine() As Object
 	m.videoPlayer.StopClear()
 
 	m.channel = ParseXml()
-	if type(m.channel) = "roAssociativeArray" then
+
+	if type(m.channel) = "roAssociativeArray" and m.channel.version <> "" and m.channel.templates.Count() > 0 then
+		' need to guarantee that all objects exist
+		playlistFiles = m.channel.templates[0].frames[0].playlists[0].files
+		BubbleSortPlaylistFiles(playlistFiles)
 		return m.stWaitingForUpdatedContent
 	else
 	    return m.stWaitingForInitialContent
 	endif
 
 End Function
+
+
+Sub BubbleSortPlaylistFiles(playlistFiles As Object)
+
+	if type(playlistFiles) = "roArray" then
+	
+		n = playlistFiles.Count()
+
+		while n <> 0
+
+			newn = 0
+			for i = 1 to (n - 1)
+				if playlistFiles[i-1].playOrder > playlistFiles[i].playOrder then
+					k = playlistFiles[i]
+					playlistFiles[i] = playlistFiles[i-1]
+					playlistFiles[i-1] = k
+					newn = i
+				endif
+			next
+			n = newn
+
+		end while
+
+	endif
+
+End Sub
+
 
 
 Sub BuildContentList()
@@ -244,6 +275,7 @@ Function IsVideo(ext As String) As Boolean
 	if ext = "mpg" return true
 	if ext = "ts" return true
 	if ext = "mov" return true
+	if ext = "wmv" return true
 
 End Function
 
