@@ -61,6 +61,18 @@ End Function
 
 Function InitializeNetworkingStateMachine() As Object
 
+	m.macAddress$ = ""
+	nc = CreateObject("roNetworkConfiguration", 0)
+	if type(nc) = "roNetworkConfiguration" then
+        currentConfig = nc.GetCurrentConfig()
+        if type(currentConfig) = "roAssociativeArray" then
+			m.macAddress$ = currentConfig.ethernet_mac
+        endif
+	endif
+
+	m.guid$ = ReadAsciiFile("guid.txt")
+	m.guid$ = m.guid$.trim()
+
 	m.channel = ParseXml()
 
     m.timeBetweenNetConnects% = 30
@@ -142,13 +154,13 @@ Sub CheckMacAddr()
 	checkMacAddrXml = checkMacAddrXml + "<CheckMacAddr xmlns=" + chr(34) + "http://tempuri.org/" + chr(34) + ">"
 
 '										<ClientGUID>string</ClientGUID>
-	checkMacAddrXml = checkMacAddrXml + "<ClientGUID>736b3972-aa2b-463b-8ac4-668bb3374ef1</ClientGUID>"
+	checkMacAddrXml = checkMacAddrXml + "<ClientGUID>" + m.stateMachine.guid$ + "</ClientGUID>"
 
 '										<MACAddresses>
 	checkMacAddrXml = checkMacAddrXml + "<MACAddresses>"
 
 '										<string>string</string>
-	checkMacAddrXml = checkMacAddrXml + "<string>90:ac:3f:03:87:12</string>"
+	checkMacAddrXml = checkMacAddrXml + "<string>" + m.stateMachine.macAddress$ + "</string>"
 	 
 '										</MACAddresses>
 	checkMacAddrXml = checkMacAddrXml + "</MACAddresses>"
@@ -256,14 +268,14 @@ Sub GetPublishmentVersionForClient()
 	getPublishmentVersionForClientXml = getPublishmentVersionForClientXml + "<GetPublishmentVersionForClient xmlns=" + chr(34) + "http://tempuri.org/" + chr(34) + ">"
 
 '      <ClientGUID>string</ClientGUID>
-	getPublishmentVersionForClientXml = getPublishmentVersionForClientXml + "<ClientGUID>736b3972-aa2b-463b-8ac4-668bb3374ef1</ClientGUID>"
+	getPublishmentVersionForClientXml = getPublishmentVersionForClientXml + "<ClientGUID>" + m.stateMachine.guid$ + "</ClientGUID>"
 
 '      <MACAddress>
 '	getPublishmentVersionForClientXml = getPublishmentVersionForClientXml + "<MACAddresses>"
 	getPublishmentVersionForClientXml = getPublishmentVersionForClientXml + "<MACAddress>"
 
 '        <string>string</string>
-	getPublishmentVersionForClientXml = getPublishmentVersionForClientXml + "<string>90:ac:3f:03:87:12</string>"
+	getPublishmentVersionForClientXml = getPublishmentVersionForClientXml + "<string>" + m.stateMachine.macAddress$ + "</string>"
 
 '      </MACAddress>
 '	getPublishmentVersionForClientXml = getPublishmentVersionForClientXml + "</MACAddresses>"
@@ -528,7 +540,7 @@ Function STDownloadingContentEventHandler(event As Object, stateData As Object) 
 					endif
 				else
 					print "file download error"
-stop
+
 					' try next file
 					if m.stateMachine.filesToDownload.Count() = 0 then
 						stop
