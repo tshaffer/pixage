@@ -158,3 +158,39 @@ Function ParsePlaylistFile(playlistFileXML As Object)
 End Function
 
 
+Sub DisplayErrorScreen(msg1$ As String, msg2$ As String)
+
+	videoMode = CreateObject("roVideoMode")
+	resX = videoMode.GetResX()
+	resY = videoMode.GetResY()
+	videoMode = invalid
+
+	r = CreateObject("roRectangle", 0, 0, resX, resY)
+	twParams = CreateObject("roAssociativeArray")
+	twParams.LineCount = 1
+	twParams.TextMode = 2
+	twParams.Rotation = 0
+	twParams.Alignment = 1
+	tw=CreateObject("roTextWidget",r,1,2,twParams)
+	tw.PushString("")
+	tw.Show()
+
+	r=CreateObject("roRectangle",0,resY/2-resY/32,resX,resY/32)
+	tw=CreateObject("roTextWidget",r,1,2,twParams)
+	tw.PushString(msg1$)
+	tw.Show()
+
+	r2=CreateObject("roRectangle",0,resY/2,resX,resY/32)
+	tw2=CreateObject("roTextWidget",r2,1,2,twParams)
+	tw2.PushString(msg2$)
+	tw2.Show()
+
+	' wait here forever
+	msToWaitBeforeRebooting = 0
+    msgPort = CreateObject("roMessagePort")
+    msg = wait(msToWaitBeforeRebooting, msgPort)
+    RebootSystem()
+
+End Sub
+
+

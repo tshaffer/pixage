@@ -110,12 +110,6 @@ Function STNetworkSchedulerEventHandler(event As Object, stateData As Object) As
                 ' m.obj.diagnostics.PrintDebug(m.id$ + ": exit signal")
 				print m.id$ + ": exit signal"
             
-'            else if event["EventType"] = "POST_IMPRESSION" then
-
-'				bulletinId$ = event["BulletinId"]
-'				m.PostImpression(bulletinId$)
-'				return "HANDLED"
-
 			endif
             
         endif
@@ -181,7 +175,7 @@ Sub CheckMacAddr()
 	aa.response_body_string = true
 
 	if not m.checkMacAddrXfer.AsyncMethod( aa ) then
-		stop
+		DisplayErrorScreen("Network download error: CheckMacAddr 0", "Please contact the CMS.")
 	endif
 
 End Sub
@@ -230,7 +224,7 @@ Function STCheckingMacAddrEventHandler(event As Object, stateData As Object) As 
 					stateData.nextState = m.stateMachine.stGettingPublishmentVersionForClient
 					return "TRANSITION"
 				else
-					stop
+					DisplayErrorScreen("Network download error: CheckMacAddr 1", "Please contact the CMS.")
 				endif
 			endif
 		endif
@@ -297,7 +291,7 @@ Sub GetPublishmentVersionForClient()
 	aa.response_body_string = true
 
 	if not m.getPublishmentVersionForClientXfer.AsyncMethod( aa ) then
-		stop
+		DisplayErrorScreen("Network download error: GetPublishmentVersionForClient 0", "Please contact the CMS.")
 	endif
 
 End Sub
@@ -312,9 +306,15 @@ Function ParseGetPublishmentVersionForClientXml( event As Object ) As String
 		if children.Count() = 1 then
 			soapBody = children[0]
 			publishmentVersionForClientResult = soapBody.GetPublishmentVersionForClientResponse.GetPublishmentVersionForClientResult
-			outputObjectList = soapBody.GetPublishmentVersionForClientResponse.GetPublishmentVersionForClientResult.OutputObject
-			xmlVersion$ = outputObjectList[0].GetBody()
-			return xmlVersion$
+
+			returnCode = soapBody.GetPublishmentVersionForClientResponse.GetPublishmentVersionForClientResult.ReturnCode[0].GetText()
+			if returnCode <> "0" then
+				DisplayErrorScreen("Error " + returnCode + " retrieving publishment version for client.", "Contact the CMS.")
+			else
+				outputObjectList = soapBody.GetPublishmentVersionForClientResponse.GetPublishmentVersionForClientResult.OutputObject
+				xmlVersion$ = outputObjectList[0].GetBody()
+				return xmlVersion$
+			endif
 		endif
 	endif
 
@@ -335,7 +335,9 @@ Sub RetrievePublishFile( xmlVersion$ )
 
 	' PIXAGETODO - make asynchronous
 	rc = m.getPublishFileXfer.GetToFile("publish.zip")
-	if rc <> 200 then stop
+	if rc <> 200 then
+		DisplayErrorScreen("Network download error: retrieving publishment files", "Please contact the CMS.")
+	endif
 
 End Sub
 
@@ -426,6 +428,7 @@ Function STGettingPublishmentVersionForClientEventHandler(event As Object, state
 				if event.GetResponseCode() = 200 or event.GetResponseCode() = 0 then
 
 					getPublishmentVersionForClient$ = event.GetString()
+
 					xmlVersion$ = m.ParseGetPublishmentVersionForClientXml( event )
 					if xmlVersion$ <> m.stateMachine.channel.version then
 
@@ -460,7 +463,7 @@ Function STGettingPublishmentVersionForClientEventHandler(event As Object, state
 					stateData.nextState = m.stateMachine.stWaitForTimeout
 					return "TRANSITION"
 				else
-					stop
+					DisplayErrorScreen("Network download error: getting publishment version for client", "Please contact the CMS.")
 				endif
 			endif
 		endif
@@ -486,7 +489,7 @@ Sub DownloadFile(playlistFile)
 	print "download from " + url$ + " to " + targetFile
 
 	rc = m.downloadFileXfer.AsyncGetToFile(targetFile)
-	if rc <> 200 then stop
+	DisplayErrorScreen("Network download error " + stri(rc) + " downloading file: " + playlistFile.fileName, "Please contact the CMS.")
 
 End Sub
 
